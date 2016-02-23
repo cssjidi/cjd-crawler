@@ -8,7 +8,7 @@ var URL = require('url');
 var http = require('http');
 
 
-var baseUrl = 'http://u15.info/';
+var baseUrl = 'http://baidu.com';
 var config = {
     selector:'primary-content',
     charset:'utf8'
@@ -110,7 +110,7 @@ Crawler.prototype.save = function(filename){
         if(!error){
             fs.exists(savePath, function (exists) {
                 if(exists){
-                    console.log('Ŀ¼�Ѿ�����');
+                    console.log('Ä¿Â¼ÒÑ¾­´æÔÚ');
                 }else{
                     request(baseUrl).pipe(fs.createWriteStream(savePath));
                 }
