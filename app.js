@@ -8,11 +8,16 @@ var URL = require('url');
 var http = require('http');
 
 
-var baseUrl = 'http://baidu.com';
+var baseUrl = 'http://baidu.com/';
 var config = {
     selector:'primary-content',
-    charset:'utf8'
+    charset:'utf8',
+    saveDir:'D:/www/spider/save'
 }
+var selector = [
+    { $: '$("#primary-content .post-content p").find("a")', attr: 'href' },
+    { $: '$("#primary-content .post-content p").first().find("img")', attr: 'src' }
+];
 var page = {
     page:'page/%d',
     from:2,
@@ -26,6 +31,129 @@ var Crawler = function(){
 
 
 Crawler.prototype.crawl = function(){
+    var self = this;
+    var content = '#primary-content';
+    var urlLevels = [];
+    console.log('start');
+    async.eachSeries(selector,function(item,callback){
+        var index = selector.indexOf(item);
+        //console.log(selector.indexOf(item));
+        if(index === selector.length - 1){
+
+        }else if(index === 0){
+            var i = page.from;
+            async.whilst(function(){
+                return i < page.to;
+            },function(_callback){
+                self.request(baseUrl,function(status,$){
+                    if(status) {
+                        var $$ = eval(item.$);
+                        $$.each(function () {
+                            var nextUrl = $(this).attr(item.attr);
+                            console.log(nextUrl);
+                            //urlLevels[0].push(nextUrl);
+                        })
+                    }else{
+                        console.log('request file');
+                    }
+                    setTimeout(function () {
+                        ++i;
+                        _callback(null);
+                    }, parseInt(Math.random() * 2000));
+                })
+            },function(error){
+                if(error){
+                    console.log(error);
+                }else{
+                    console.log('page finshed,total:');
+                }
+                callback(null);
+            })
+        }
+    })
+}
+
+Crawler.prototype.image = function(urls){
+    var self = this;
+    console.log('get images');
+    var i = 0;
+    var count = urls.length;
+    async.whilst(function(){
+        return i < count;
+    },function(callback){
+        var url = urls[i];
+        self.request(url,function(status,$){
+            var list = [];
+            if(status){
+                var last = selector[selector.length - 1];
+                var $$ = eval(last.$);
+                var len = $$.length;
+                if(len > 0) {
+                    $$.each(function(){
+                        list.push({
+                            url:$(this).attr(last.attr),
+                            title:$(this).attr('alt')
+                        });
+                    })
+                    self.dlImage(list,function(){
+                        ++i;
+                        callback();
+                    })
+                }else{
+                    ++i;
+                    callback();
+                    console.log('load field');
+                }
+            }
+        })
+    },function(error){
+        if(error){
+            console.log('imageError'+error);
+        }
+    })
+}
+
+Crawler.prototype.dlImage = function(list,callback){
+    var self = this;
+    var count = list.length;
+    if(count < 1){
+        callback();
+        return;
+    }
+    async.eachSeries(list,function(item,callback){
+        var filename = item.url.match(/[^\/]+\.\w{3,4}$/)[0];
+        var filepath = path.join(config.saveDir,item.title);
+        mkdirp(filepath,function(error){
+            if(error){
+                callback();
+            }else{
+                request.head(item.url,function(error,res,body){
+                    var url = item.url;
+                    var savePath = path.join(filepath,filename);
+                    fs.exists(savePath,function(exists){
+                        if(exists){
+                            console.log('path is exists');
+                            callback();
+                        }else{
+                            request(url).pipe(fs.createWriteStream(savePath));
+                            console.log('save success');
+                            setTimeout(callback,parseInt(Math.random()*2000));
+                        }
+                    })
+                })
+            }
+        })
+    },function(error){
+        if(error){
+            console.log('download filed');
+        }else{
+            console.log('download finish');
+        }
+        callback();
+    });
+}
+
+Crawler.prototype.init = function(){
     var self = this;
     var urls = [];
     var url = baseUrl;
@@ -57,14 +185,16 @@ Crawler.prototype.detail = function(url){
                 //self.saveImage($(this).find('p').eq(1).text(),$(this).find('img').attr('src'));
                 that.find('img').each(function (i, item) {
                     //console.log(that.find('img').attr('src'));
-                    self.saveImage(that.find('img').attr('src'), that.find('img').attr('alt'),that.find('p').first().text());
+                    self.saveImage(that.find('img').attr('src'), that.find('img').attr('alt'),that.find('p').first().text(),function($){
+                    });
+                    //self.saveImage(that.find('img').attr('src'), that.find('img').attr('alt'),that.find('p').first().text());
                 });
             });
         }
     });
 }
 
-Crawler.prototype.saveImage = function(url,filename,paths,level){
+Crawler.prototype.saveImage = function(url,filename,paths,callback){
     var self = this;
     var filepath = path.join('D:/www/pachong/save',paths)
     mkdirp(filepath,function(error){
@@ -75,12 +205,19 @@ Crawler.prototype.saveImage = function(url,filename,paths,level){
                     if(!error){
                         console.log(error);
                         res.pipe(fs.createWriteStream(savePath));
+                        if(callback) {
+                            callback.call(this, filename, paths);
+                        }
                     }
                 })
             })
         }
     })
 };
+
+Crawler.prototype.save = function(){
+
+}
 
 
 
@@ -101,24 +238,6 @@ Crawler.prototype.request = function(url,callback){
 };
 
 
-/*
-Crawler.prototype.save = function(filename){
-    var self = this;
-    var filepath = path.join('D:/www/pachong/save/',filename)
-    mkdirp(filepath,function(error){
-        var savePath = path.join(filepath);
-        if(!error){
-            fs.exists(savePath, function (exists) {
-                if(exists){
-                    console.log('Ä¿Â¼ÒÑ¾­´æÔÚ');
-                }else{
-                    request(baseUrl).pipe(fs.createWriteStream(savePath));
-                }
-            });
-        }
-    })
-};
-*/
 
 
 var cjd = new Crawler();
