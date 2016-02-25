@@ -10,7 +10,7 @@ var http = require('http');
 
 //config
 var config = {
-	baseUrl : 'http://baidu.com',
+	baseUrl : 'http://u15.info',
 	page:'page/%d',
 	from:1,
 	to:15,
@@ -89,54 +89,55 @@ spider.prototype = {
 	detail: function(url){
 		var self = this;
 		//self.saveImage(filepath,obj[i].thumbName,obj[i].thumbUrl);
-		self.request(url,function(status,$){
-			var $$ = eval($);
-			var dlObj = [];
-			var img = [];
-			var alt = [];
-			if(status) {
-				$$('#primary-content .post-content').each(function () {
-					$$(this).find('p img').each(function () {
-						img.push($$(this).attr('src'));
-						alt.push($$(this).attr('alt'));
-					});
-					dlObj.push({
-						filename: $$(this).find('p').first().text(),
-						link: $$(this).find('a.more-link').attr('href'),
-						thumbUrl: img,
-						thumbName: alt
+		async.eachSeries(url,function(item,callback){
+			self.request(url,function(status,$){
+				var $$ = eval($);
+				var dlObj = [];
+				var img = [];
+				var alt = [];
+				if(status) {
+					$$('#primary-content .post-content').each(function () {
+						$$(this).find('p img').each(function () {
+							img.push($$(this).attr('src'));
+							alt.push($$(this).attr('alt'));
+						});
+						dlObj.push({
+							filename: $$(this).find('p').first().text(),
+							link: $$(this).find('a.more-link').attr('href'),
+							thumbUrl: img,
+							thumbName: alt
+						})
+						self.dlImage(dlObj);
+						console.log(dlObj);
 					})
-					self.dlImage(dlObj);
-					console.log(dlObj);
-				})
-			}
-		});
+				}
+			});
+		})
+
 	},
 	saveImage: function(filepath,filename,url){
 		//var dlUrl = typeof url == 'object' ? url
 		async.eachSeries(url,function(item,callback){
-			console.log(item);
+			mkdirp(filepath,function(error) {
+				if (error) {
+					console.log('error:' + error)
+				} else {
+					var savePath = path.join(filepath, filename);
+					request.head(item, function (err, res, body) {
+						//var savePath = path.join(filepath, filename);
+						fs.exists(savePath, function (exists) {
+							if (exists) {
+								console.log('目录已存在');
+							} else {
+								request(url).pipe(fs.createWriteStream(savePath));
+								//console.log((list.indexOf(item) + 1) + '/' + count + '  ：' + path.join(filepath, filename) + '保存成功', 'green');
+								//setTimeout(callback, parseInt(Math.random() * 2000));
+							}
+						});
+					});
+				}
+			});
 		})
-
-		//mkdirp(filepath,function(error) {
-		//	if (error) {
-		//		console.log('error:' + error)
-		//	} else {
-		//		var savePath = path.join(filepath, filename);
-		//		request.head(url, function (err, res, body) {
-		//			//var savePath = path.join(filepath, filename);
-		//			fs.exists(savePath, function (exists) {
-		//				if (exists) {
-		//					console.log('目录已存在');
-		//				} else {
-		//					request(url).pipe(fs.createWriteStream(savePath));
-		//					//console.log((list.indexOf(item) + 1) + '/' + count + '  ：' + path.join(filepath, filename) + '保存成功', 'green');
-		//					//setTimeout(callback, parseInt(Math.random() * 2000));
-		//				}
-		//			});
-		//		});
-		//	}
-		//});
 	},
 	//列表页
 	listUrl: function(callback){
