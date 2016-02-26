@@ -10,10 +10,10 @@ var http = require('http');
 
 //config
 var config = {
-	baseUrl : 'http://u15.info',
+	baseUrl : 'http://baidu.com',
 	page:'page/%d',
-	from:1,
-	to:15,
+	from:11,
+	to:20,
 	saveDir:'D:/www/cjd-crawler/save'
 }
 var selector = [
@@ -50,24 +50,35 @@ spider.prototype = {
 				var alt = [];
 				if(status) {
 					$$('#primary-content .post-content').each(function () {
-						$$(this).find('p img').each(function(){
-							img.push($$(this).attr('src'));
-							alt.push($$(this).attr('alt'));
-						});
 						dlObj.push({
-							filename: $$(this).find('p').first().text(),
+							title: $$(this).find('p').first().text(),
 							link: $$(this).find('a.more-link').attr('href'),
-							thumbUrl: img,
-							thumbName:alt,
+							thumbUrl: $$(this).find('p img').first().attr('src'),
+							thumbName:$$(this).find('p img').first().attr('alt'),
 						});
 					})
-					self.dlImage(dlObj);
+					async.waterfall([function(_callback){
+						self.saveImage(dlObj);
+						//setTimeout(function(){
+						_callback(null);
+						//}, 2000);
+					},function(cb){
+						self.detail(dlObj);
+						setTimeout(function(){
+							cb(null);
+						}, 2000);
+					}],function(err){
+						if(err){
+							console.log('error:'+err);
+						}
+					})
 					//console.log(dlObj);
+					++i;
+					callback();
 				}
 			});
 			//执行完后调用下一页
-			++i;
-			callback();
+
 		})
 	},
 	//存储列表图片
@@ -79,18 +90,18 @@ spider.prototype = {
 			var filename = obj[i].filename;
 			var filepath = path.join(config.saveDir,filename);
 			self.saveImage(filepath,obj[i].thumbName,obj[i].thumbUrl);
-			self.detail(obj[i].link);
+			//self.detail(obj[i].link);
 			++i;
 			callback();
 		},function(){
 
 		})
 	},
-	detail: function(url){
+	detail: function(urls){
 		var self = this;
 		//self.saveImage(filepath,obj[i].thumbName,obj[i].thumbUrl);
-		async.eachSeries(url,function(item,callback){
-			self.request(url,function(status,$){
+		async.eachSeries(urls,function(item,callback){
+			self.request(item.link,function(status,$){
 				var $$ = eval($);
 				var dlObj = [];
 				var img = [];
@@ -102,41 +113,112 @@ spider.prototype = {
 							alt.push($$(this).attr('alt'));
 						});
 						dlObj.push({
-							filename: $$(this).find('p').first().text(),
+							title: $$(this).find('p').first().text(),
 							link: $$(this).find('a.more-link').attr('href'),
 							thumbUrl: img,
 							thumbName: alt
 						})
-						self.dlImage(dlObj);
-						console.log(dlObj);
+						self.saveImage(dlObj);
+						//console.log(dlObj);
 					})
+					callback();
+				}else{
+					callback();
 				}
 			});
+		},function(err){
+			if(err){
+				console.log('error'+err);
+			}
 		})
 
 	},
-	saveImage: function(filepath,filename,url){
+	saveImage: function(urls){
 		//var dlUrl = typeof url == 'object' ? url
-		async.eachSeries(url,function(item,callback){
+		var self = this;
+		var count = urls.length;
+		console.log('准备下载到本地中。。。');
+		if (count < 1) {
+			callback();
+			return;
+		}
+		async.eachSeries(urls,function(item,callback){
+			//console.log(item);
+			var filepath = path.join(config.saveDir, item.title);
+			//return;
 			mkdirp(filepath,function(error) {
 				if (error) {
 					console.log('error:' + error)
+					callback();
 				} else {
-					var savePath = path.join(filepath, filename);
-					request.head(item, function (err, res, body) {
-						//var savePath = path.join(filepath, filename);
-						fs.exists(savePath, function (exists) {
-							if (exists) {
-								console.log('目录已存在');
-							} else {
-								request(url).pipe(fs.createWriteStream(savePath));
-								//console.log((list.indexOf(item) + 1) + '/' + count + '  ：' + path.join(filepath, filename) + '保存成功', 'green');
-								//setTimeout(callback, parseInt(Math.random() * 2000));
+					if(typeof item.thumbUrl === 'object') {
+						var obj = item.thumbUrl;
+						var len = item.thumbUrl.length;
+						var kk = 0;
+						console.log('内页图片准备下载到本地中。。。');
+						if (len < 1) {
+							callback();
+							return;
+						}
+						async.eachSeries(item.thumbUrl,function(_item,_callback){
+							//var myPath = path.join(filepath, item.thumbName[kk]);
+							//console.log(item.title);
+							//var _item = item.thumbUrl[kk];
+							var myName = item.thumbName[kk];
+							request.head(_item, function (err, res, body) {
+								var myPath = path.join(filepath,myName);
+								//console.log('content-type:', res.headers['content-type']);
+								//console.log('content-length:', res.headers['content-length']);
+								if (err) {
+									console.log('error:' + err);
+									_callback();
+								}else{
+									fs.exists(filepath, function (exists) {
+										if (exists) {
+											console.log('内页已经存在');
+											console.log('--------------------------------------------');
+											request(_item).pipe(fs.createWriteStream(myPath));
+											console.log((obj.indexOf(_item) + 1) + '/' + len + '  ：' + path.join(filepath, myName) + '保存成功');
+											++kk;
+											//_callback();
+											setTimeout(_callback, parseInt(Math.random() * 2000));
+											console.log('--------------------------------------------');
+										}
+									});
+								}
+							});
+						},function(err){
+							if(err){
+								console.log('error'+err);
+							}else{
+								console.log( '下载完毕~');
 							}
 						});
-					});
+					}else if(typeof item.thumbUrl === 'string'){
+						var filename = item.thumbName;
+						var savePath = path.join(filepath, filename);
+						request.head(item.thumbUrl, function (err, res, body) {
+							//var savePath = path.join(filepath, filename);
+							fs.exists(savePath, function (exists) {
+								if (exists) {
+									console.log('目录已存在');
+									callback();
+								} else {
+									request(item.thumbUrl).pipe(fs.createWriteStream(savePath));
+									console.log((urls.indexOf(item) + 1) + '/' + count + '  ：' + path.join(filepath, filename) + '保存成功');
+									setTimeout(callback, parseInt(Math.random() * 2500));
+								}
+							});
+						});
+					}
 				}
 			});
+		}, function (err) {
+			if (err) {
+				console.log(err, "red");
+			} else {
+				console.log( '下载完毕~');
+			}
 		})
 	},
 	//列表页
