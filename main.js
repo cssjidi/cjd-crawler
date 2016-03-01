@@ -6,20 +6,31 @@ var fs = require('fs');
 var async = require('async');
 var mkdirp = require('mkdirp');
 var http = require('http');
+var mysql = require('mysql');
+
+var connection = mysql.createConnection({
+  host     : 'localhost',
+  user     : 'root',
+  password : 'root',
+  database : 'meinv'
+});
 
 
 //config
 var config = {
-	baseUrl : 'http://baidu.com',
+	baseUrl : 'http://test.info',
 	page:'page/%d',
 	from:11,
 	to:20,
-	saveDir:'D:/www/cjd-crawler/save'
+	saveDir:'D:/www/spider/save'
 }
 var selector = [
 	{ $: '$("#primary-content .post-content p").find("a")', attr: 'href' },
 	{ $: '$("#primary-content .post-content p").first().find("img")', attr: 'src' }
 ];
+
+
+
 
 var spider = function(){
 	this.urls = [];
@@ -50,12 +61,42 @@ spider.prototype = {
 				var alt = [];
 				if(status) {
 					$$('#primary-content .post-content').each(function () {
+						var id = $$(this).find('a.more-link').attr('href').split('#')[1].split('-')[1];
+						var link = $$(this).find('a.more-link').attr('href');
+						var title = $$(this).find('p').first().text();
+						var thumbUrl = $$(this).find('p img').first().attr('src');
+						var thumbName = $$(this).find('p img').first().attr('alt');
 						dlObj.push({
-							title: $$(this).find('p').first().text(),
-							link: $$(this).find('a.more-link').attr('href'),
-							thumbUrl: $$(this).find('p img').first().attr('src'),
-							thumbName:$$(this).find('p img').first().attr('alt'),
+							title: title,
+							link:link,
+							thumbUrl: thumbUrl,
+							thumbName:thumbName,
+							id:id
 						});
+						console.log(dlObj);
+						connection.query('SELECT count(*) as count from `meinv`.`wp_posts` where id='+id,function(err,rows,fields){
+							//console.log(rows[0]['count']);
+							if(rows.count >= 1){
+								console.log(1111111);
+								connection.query("update `meinv`.`wp_posts` set `post_title`='"+title+"' where id="+id,function(err,rows,fields){
+									if (err) throw err;
+		  							console.log('The solution is: ', rows);
+								})
+							}else{
+								console.log(2222222);
+								connection.query("INSERT INTO `meinv`.`wp_posts` (`ID`, `post_author`, `post_date`, `post_date_gmt`, `post_content`, `post_title`, `post_excerpt`, `post_status`, `comment_status`, `ping_status`, `post_password`, `post_name`, `to_ping`, `pinged`, `post_modified`, `post_modified_gmt`, `post_content_filtered`, `post_parent`, `guid`, `menu_order`, `post_type`, `post_mime_type`, `comment_count`) VALUES ('"+id+"', '1', '2015-12-03 10:55:09', '2015-12-03 02:55:09', '', '"+title+"', '', 'inherit', 'open', 'open', '', '"+title+"', '', '', '2015-12-03 10:55:09', '2015-12-03 02:55:09', '', '0', 'http://5imeinv.com/?p"+id+"', '0', 'post', '', '0')",function(err,rows, fields){
+									if (err) throw err;
+	  								console.log('The solution is: ', rows);
+								});
+							}
+						});
+						//connection.query("INSERT INTO `meinv`.`wp_posts` (`ID`, `post_author`, `post_date`, `post_date_gmt`, `post_content`, `post_title`, `post_excerpt`, `post_status`, `comment_status`, `ping_status`, `post_password`, `post_name`, `to_ping`, `pinged`, `post_modified`, `post_modified_gmt`, `post_content_filtered`, `post_parent`, `guid`, `menu_order`, `post_type`, `post_mime_type`, `comment_count`) VALUES ('"+id+"', '1', '2015-12-03 10:55:09', '2015-12-03 02:55:09', '', '"+title+"', '', 'inherit', 'open', 'open', '', '"+title+"', '', '', '2015-12-03 10:55:09', '2015-12-03 02:55:09', '', '0', 'http://5imeinv.com/?p"+id+"', '0', 'post', '', '0')",function(err,rows, fields){
+							//if (err) throw err;
+  								//console.log('The solution is: ', rows[0].solution);
+						//});
+
+						//INSERT INTO `meinv`.`wp_posts` (`ID`, `post_author`, `post_date`, `post_date_gmt`, `post_content`, `post_title`, `post_excerpt`, `post_status`, `comment_status`, `ping_status`, `post_password`, `post_name`, `to_ping`, `pinged`, `post_modified`, `post_modified_gmt`, `post_content_filtered`, `post_parent`, `guid`, `menu_order`, `post_type`, `post_mime_type`, `comment_count`) VALUES ('1038', '1', '2015-12-03 10:52:24', '2015-12-03 02:52:24', '<a href=\"http://imgbar.net/img-489324.html\" target=\"_blank\"><img src=\"http://t1.imgbar.net/a9c58e014a/5d3464eb0a.jpg\" alt=\"\" border=\"0\" /></a>\r\n\r\n下载地址：\r\n\r\n<a href=\"http://5xpan.com/fs/ere1nt6ij3id7i9c07/\" target=\"_blank\">http://5xpan.com/fs/ere1nt6ij3id7i9c07/</a>\r\n\r\n<a href=\"http://qiannao.com/file/5imeinv/5508b7a3/\" target=\"_blank\">http://qiannao.com/file/5imeinv/5508b7a3/</a>', 'LCDV-20075 Manami Fuku 福愛美 SUGAR', '', 'publish', 'open', 'open', '', 'lcdv-20075-manami-fuku-fu-love-beautiful-sugar', '', '', '2015-12-03 10:55:09', '2015-12-03 02:55:09', '', '0', 'http://5imeinv.com/?p=1038', '0', 'post', '', '0');
+
 					})
 					async.waterfall([function(_callback){
 						self.saveImage(dlObj);
@@ -76,6 +117,8 @@ spider.prototype = {
 					++i;
 					callback();
 				}
+			},function(){
+				connection.end();
 			});
 			//执行完后调用下一页
 
