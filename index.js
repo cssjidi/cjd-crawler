@@ -8,12 +8,15 @@ var iconv = require('iconv-lite');
 //var buffer = require('buffer');
 var path = require('path');
 
+var note = ['rosi','sijianwu','fengsumeiniang','4k-star'];
+var config = note[3];
+
 var ImgDownLoad = function(url,saveDir){
     this.url = url || '';
     this.saveDir = saveDir || '';
     this.page = {
-        from: 2,
-        to: 11
+        from: 0,
+        to:5
     };
     this.headers = {
         'Accept-Encoding': 'gzip, deflate, sdch',
@@ -32,34 +35,26 @@ var ImgDownLoad = function(url,saveDir){
 
  */
 //下载图片，传入图片名称，保存的路径
-ImgDownLoad.prototype.download = function(imgname,imageUrl,filename){
+ImgDownLoad.prototype.download = function(obj){
     var self = this;
-
-    var savePath = path.join(self.saveDir, filename);
-    var savefile = path.join(savePath,imgname)
-    //fs.exists(savePath, function (exists) {
-        //if (exists) {
-            //console.log(savePath + '已存在', 'yellow');
-        //} else {
-            request(imageUrl).pipe(fs.createWriteStream(savefile));
-            console.log('保存成功', 'green');
-        //}
-   // });
-    /*
-    if(imgname){
-        var filepath = this.saveDir + imgname;
-        console.log(filepath);
-        fs.exists({
-                path: filepath
-            }, function (exists) {
-                if(exists){
-                    console.log('目录已经存在');
-                }
-                request(imageUrl).pipe(fs.createWriteStream(filepath));
-                console.log('保存成功');
-            });
-    }
-    */
+    var i = 0;
+    //console.log(obj);
+    async.mapLimit(obj,5,function(item,callback){
+        var savePath = path.join(self.saveDir, item.title);
+        var savefile = path.join(savePath,item.alt+'.jpg')
+        request(item.src).on('error',function(err){
+            console.log('保存错误：'+err);
+        }).pipe(fs.createWriteStream(savefile));
+        setTimeout(function () {
+            ++i;
+            callback(null);
+        }, parseInt(Math.random() * 5000));
+    },function(err,result){
+        if(err){
+            console.log('保存错误：'+err);
+        }
+        console.log('保存成功，共：'+i+';张图片'+result);
+    });
 };
 
 //处理url,返回dom的信息
@@ -103,16 +98,57 @@ ImgDownLoad.prototype.init = function(){
     var i = this.page.from;
     async.eachSeries(urls,function(item,callback){
         self.request(item,function(status,$){
-            console.log(status);
+            //console.log(status);
             if(status){
                 self.dom($);
             }
-            callback(null);
+            //callback(null);
+            setTimeout(function () {
+                ++i;
+                callback(null);
+            }, parseInt(Math.random() * 2000));
         });
     },function(){
         console.log('任务执行完成');
     })
 };
+
+ImgDownLoad.prototype.start = function(){
+    var urls = this.urlList();
+    var self = this;
+    var i = this.page.from;
+    async.mapLimit(urls,5,function(item,callback){
+        self.request(item,function(status,$){
+            if(status){
+                self.dom($);
+            }
+            setTimeout(function () {
+                ++i;
+                callback(null);
+            }, parseInt(Math.random() * 2000));
+        });
+    },function(err,result){
+        if(err){
+            console.log('抓取错误：'+err);
+        }
+        console.log(result);
+    });
+    //async.eachSeries(urls,function(item,callback){
+    //    self.request(item,function(status,$){
+    //        //console.log(status);
+    //        if(status){
+    //            self.dom($);
+    //        }
+    //        //callback(null);
+    //        setTimeout(function () {
+    //            ++i;
+    //            callback(null);
+    //        }, parseInt(Math.random() * 2000));
+    //    });
+    //},function(){
+    //    console.log('任务执行完成');
+    //})
+}
 
 ImgDownLoad.prototype.mkdir = function(dir){
     mkdirp(this.saveDir + '/' + dir);
@@ -122,19 +158,75 @@ ImgDownLoad.prototype.mkdir = function(dir){
 ImgDownLoad.prototype.dom = function($){
     var $$ = $;
     var self = this;
+    var listUrls = [];
     $$('.detail-list li').each(function(){
         var path = $$(this).find('a img').attr('alt');
         var url = urlUtil.resolve(self.url,$$(this).find('a').attr('href'));
         self.mkdir(path);
-        (function(url){
-            self.request(url,function(status,$){
-                if(status) {
-                    self.detail(url,$);
-                    //self.innerPage($);
-                }
-            })
-        }(url))
+        listUrls.push(url);
+        //(function(url){
+        //    self.request(url,function(status,$){
+        //        if(status) {
+        //            self.detail(url,$);
+        //            //self.innerPage($);
+        //        }
+        //    })
+        //}(url))
     });
+    $$('.n-list li').each(function(){
+        var path = $$(this).find('a img').attr('alt');
+        var url = urlUtil.resolve(self.url,$$(this).find('a').attr('href'));
+        self.mkdir(path);
+        listUrls.push(url);
+        //(function(url){
+        //    self.request(url,function(status,$){
+        //        if(status) {
+        //            self.detail(url,$);
+        //            //self.innerPage($);
+        //        }
+        //    })
+        //}(url))
+    });
+    self.detailPage(listUrls);
+}
+
+ImgDownLoad.prototype.detailPage = function(urls){
+    var self = this;
+    var imgListUrls = [];
+    async.eachSeries(urls,function(item,callback){
+        self.request(item,function(status,$){
+            if(status) {
+                var $$ = $;
+                //var self = this;
+                var from = $$('.page-show span').first().text();
+                var j = from;
+                var to = ($$('.page-show a.next').prev().text()).replace('..','');
+                async.whilst(function(){
+                    return j < to;
+                },function(_callback){
+                    if(j == 1){
+                        imgListUrls.push(item);
+                    }else{
+                        imgListUrls.push((item.replace('.htm',j.toString())+ '.htm'));
+                    }
+                    setTimeout(function () {
+                        ++j;
+                        _callback(null);
+                    }, parseInt(Math.random() * 2000));
+                },function(){
+                    console.log('共收集到:'+j+'个相册地址');
+                    self.images(imgListUrls);
+                });
+            }
+        });
+        callback();
+    },function(err){
+        if(err){
+            console.log('错误：:'+err);
+        }
+        console.log(imgListUrls.length)
+        //self.images(imgListUrls);
+    })
 }
 
 ImgDownLoad.prototype.detail = function(imgUrl,$){
@@ -153,13 +245,14 @@ ImgDownLoad.prototype.detail = function(imgUrl,$){
         }else{
             imgListUrls.push((imgUrl.replace('.htm',j.toString())+ '.htm'));
         }
-        ++j;
-        callback();
+        setTimeout(function () {
+            ++j;
+            callback(null);
+        }, parseInt(Math.random() * 2000));
     },function(){
         console.log('共收集到:'+j+'个相册地址');
         self.images(imgListUrls);
     });
-
 }
 
 //图片页
@@ -172,10 +265,10 @@ ImgDownLoad.prototype.images = function(urls){
                 self.innerPage($);
             }
         });
-        setTimeout(function(){
+        setTimeout(function () {
             ++k;
-            callback();
-        },5000)
+            callback(null);
+        }, parseInt(Math.random() * 2000));
     },function(err){
         if(err){
             console.log('链接错误，请检查');
@@ -191,24 +284,42 @@ ImgDownLoad.prototype.innerPage = function($){
     $$('h1 span').empty();
     var title = $$('h1').text();
     console.log(title);
+    var imgObj = [];
     $$('.pp img').each(function(){
         var src = $$(this).attr('src');
         var alt = $$(this).attr('alt');
-        (function(src){
-            self.download(alt+'.jpg',src,title);
-        }(src))
+        var name = Date.now();
+        var obj = {
+            src:src,
+            alt:alt,
+            title:title
+        };
+        imgObj.push(obj);
+        //(function(src){
+            //self.download(alt+'.jpg',src,title);
+        //}(src))
     });
+    self.download(imgObj);
 }
 
 //列表页
+//http://www.henha.com/ji/rosi.html
+//http://www.henha.com/ji/rosi.html
+
+
+
+
 ImgDownLoad.prototype.urlList = function(){
     var self = this;
     var i = this.page.from;
     var to = this.page.to;
     for(;i<to;i++){
-        this.urls.push(urlUtil.resolve(self.url,'ji/sijianwu'+i+'.html'));
+        if(i==0){
+            this.urls.push(urlUtil.resolve(self.url,'ji/'+config+'.html'));
+        }
+        this.urls.push(urlUtil.resolve(self.url,'ji/'+config+i+'.html'));
     }
-    console.log(this.urls);
+    //console.log(this.urls);
     return this.urls;
 }
 
@@ -217,3 +328,4 @@ module.exports = ImgDownLoad;
 
 var imgDown = new ImgDownLoad('http://www.henha.com/','D:/www/cjd-crawler/save');
 imgDown.init();
+
