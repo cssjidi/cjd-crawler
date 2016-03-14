@@ -13,23 +13,31 @@ var Spider = function(url,options){
     if (typeof options === 'function') {
         return false;
     }
+    this.config = {};
+    this.hrefLinks = [];
+    this.imgLinks = [];
     if (typeof options === 'object') {
-        extend(params, options, {uri: url})
+        extend(config, options, {uri: url})
     } else if (typeof url === 'string') {
-        extend(params, {url: url})
+        extend(config, {url: url})
     } else {
-        extend(params, url)
+        extend(config, url)
     }
     if(url === undefined){
         return false;
     }
-    return params
 }
+//处理入口
+Spider.prototype.init = function(){
 
-
-
-var params = {}
-
-
-params.callback = callback
-return params
+}
+//处理第一层的链接(分页)
+Spider.prototype.urls = function(){
+    var url = this.config.url || '';
+    var list = this.config.listPage || '';
+    var i = this.config.from || 1;
+    var to = this.config.to || 1;
+    for(;i<to;i++){
+        hrefLinks.push();
+    }
+}
