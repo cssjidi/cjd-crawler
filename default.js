@@ -165,7 +165,7 @@ Spider.prototype.images = function(urls){
                         }
                         list.push({
                             url: url,
-                            title: self.title($("title").text())
+                            title: self.title($("title").text()),
                         });
                     });
                 }
@@ -234,7 +234,6 @@ Spider.prototype.request = function(url,callback){
         url: url,
         encoding: null /// 设置为null时，得到的body为buffer类型
     }
-    var that = this;
     console.log('发送' + url + '，等待响应中...');
     request(options, function (err, res, body) {
         var $ = null;
@@ -242,7 +241,7 @@ Spider.prototype.request = function(url,callback){
             console.log('状态' + res.statusCode + '， ' + url + '请求成功');
             $ = cheerio.load(iconv.decode(body, self.config.charset || 'utf8'));
         } else {
-            console.log('状态' + res.statusCode + '， ' + url + '请求失败');
+            console.log('状态'+ url + '请求失败');
         }
         callback(!!$, $);
     });
@@ -267,7 +266,7 @@ var spider = new Spider('http://www.henha.com/ji/sijianwu%%.html',{
     isImagePage:true,
     charset:'gb2312',
     selector:[{
-        $:'$(".detail-list li .dl-name  a")',
+        $:'$(".detail-list li .dl-name a")',
         attr:'href'
     },{
         $:'$(".pp img")',
